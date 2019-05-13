@@ -22,10 +22,17 @@ namespace hlsl_v4_compiler
         // enum for parameter type
         enum ParameterType
         {
-            param_d, param_s, param_r
+            param_d,    // generate cso targets directory
+            param_s,    // single / cluster file compilation indicator
+            param_r,    // recursive file compilation indicator
+            param_e,    // shader entry function name indicator
+            param_v,    // vertex shader suffix indicator
+            param_p,    // pixel shader suffix indicator
+            param_g     // geometry shader suffix indicator
         };
+        Compiler compiler = null;
         string[] inputParameters = null;
-        Dictionary<int, string[]> parameterDir = null;
+        Dictionary<ParameterType, string[]> parameterDir = null;
         public Semantics()
         {
 
@@ -33,26 +40,105 @@ namespace hlsl_v4_compiler
         public Semantics(string[] parameters)
         {
             inputParameters = parameters;
-            this.parameterDir = new Dictionary<int, string[]>();
+            this.parameterDir = new Dictionary<ParameterType, string[]>();
             SegmentPrehash();
         }
         private void SegmentPrehash()
         {
             // find parameter indicator and set indents
-            List<int> indentPosition = new List<int>();
-            for(int i = 0; i < this.inputParameters.Length; i++)
+            List<int[]> indentPosition = new List<int[]>();
+            for(int i = this.inputParameters.Length - 1, j = 0; i >= 0; i--)
             {
                 if(this.inputParameters[i].StartsWith("-") && this.inputParameters.Length == 2)
                 {
-                    indentPosition.Add(i);
+                    indentPosition.Add(new int[2]{i, j});
+                    j = 0;
                 }
+                else
+                    j++;
             }
             // spilt the strings at indent position into dictionary
-            foreach (int position in indentPosition)
+            foreach (int[] position in indentPosition)
             {
-                
+                if(String.Equals(this.inputParameters[position[0]], "-d"))
+                {
+                    string[] tmpStringSubDir = new string[position[1]];
+                    for(int i = 0, j = position[0] + 1; i < position[1]; i++, j++)
+                    {
+                        tmpStringSubDir[i] = this.inputParameters[j];
+                    }
+                    this.parameterDir.Add(ParameterType.param_d, tmpStringSubDir);
+                }
+                else if(String.Equals(this.inputParameters[position[0]], "-s"))
+                {
+                    string[] tmpStringSubDir = new string[position[1]];
+                    for (int i = 0, j = position[0] + 1; i < position[1]; i++, j++)
+                    {
+                        tmpStringSubDir[i] = this.inputParameters[j];
+                    }
+                    this.parameterDir.Add(ParameterType.param_s, tmpStringSubDir);
+                }
+                else if(String.Equals(this.inputParameters[position[0]], "-r"))
+                {
+                    string[] tmpStringSubDir = new string[position[1]];
+                    for (int i = 0, j = position[0] + 1; i < position[1]; i++, j++)
+                    {
+                        tmpStringSubDir[i] = this.inputParameters[j];
+                    }
+                    this.parameterDir.Add(ParameterType.param_r, tmpStringSubDir);
+                }
             }
             indentPosition.Clear();
+        }
+        public void CompileWithOptions(string entryName, string vsSuffix, string psSuffix)
+        {
+            Compiler compiler = new Compiler();
+            string[] paramTrial = null;
+            
+            // set input options for entry name, vs suffix and ps suffix
+            this.parameterDir.TryGetValue(ParameterType.param_e, out paramTrial);
+            if (paramTrial != null && paramTrial.Length != 0)
+            {
+                compiler.SetEntryName(entryName);
+            }
+            this.parameterDir.TryGetValue(ParameterType.param_v, out paramTrial);
+            if (paramTrial != null && paramTrial.Length != 0)
+            {
+                compiler.SetVSShaderSuffix(vsSuffix);
+            }
+            this.parameterDir.TryGetValue(ParameterType.param_p, out paramTrial);
+            if (paramTrial != null && paramTrial.Length != 0)
+            {
+                compiler.SetPSShaderSuffix(psSuffix);
+            }
+            // first confirm recursive compilation, if not, single compilation
+            this.parameterDir.TryGetValue(ParameterType.param_r, out paramTrial);
+            if(paramTrial != null && paramTrial.Length != 0)
+            {
+                string[] pathParams = null;
+                this.parameterDir.TryGetValue(ParameterType.param_d, out pathParams);
+                if (paramTrial != null && paramTrial.Length != 0)
+                {
+
+                }
+                else
+                {
+
+                }
+            }
+            else
+            {
+                string[] pathParams = null;
+                this.parameterDir.TryGetValue(ParameterType.param_d, out pathParams);
+                if (paramTrial != null && paramTrial.Length != 0)
+                {
+
+                }
+                else
+                {
+
+                }
+            }
         }
     }
     public class Compiler
@@ -71,6 +157,18 @@ namespace hlsl_v4_compiler
             this.shaderEntryName = entryName;
             this.vsShaderFileSuffix = vsSuffix;
             this.psShaderFileSuffix = psSuffix;
+        }
+        public void SetEntryName(string entry_name)
+        {
+            this.shaderEntryName = entry_name;
+        }
+        public void SetVSShaderSuffix(string vs_suffix)
+        {
+            this.vsShaderFileSuffix = vs_suffix;
+        }
+        public void SetPSShaderSuffix(string ps_suffix)
+        {
+            this.psShaderFileSuffix = ps_suffix;
         }
         public int CompileSingleFile(string src_file_path, string des_file_path)
         {

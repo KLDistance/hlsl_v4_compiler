@@ -2,10 +2,10 @@
 **By Yunong Wang (DrippySummer @ KLDistance)**
 <br><br>
 Simple compiler of hlsl shader with model version 4 used in daily development.<br>
-This is an implementation of SlimDX.
+This program implements SlimDX and .NET framework 3.5 (Win7, 8, 8.1 and 10 supported).
 <br><br>
 ## Usage
-This is a command line tool with some parameters.<br>
+The command line tool requires some parameters to trace the source and generate target .cso files.<br>
 If you want to compile single .vs or .ps, execute it as<br>
 
 > hlslc.exe xxxx.vs<br><br>
