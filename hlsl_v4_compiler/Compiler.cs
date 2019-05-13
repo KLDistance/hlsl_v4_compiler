@@ -23,7 +23,7 @@ namespace hlsl_v4_compiler
         enum ParameterType
         {
             param_d,    // generate cso targets directory
-            param_s,    // single / cluster file compilation indicator
+            param_s,    // source clusters of file compilation indicator
             param_r,    // recursive file compilation indicator
             param_e,    // shader entry function name indicator
             param_v,    // vertex shader suffix indicator
@@ -111,7 +111,7 @@ namespace hlsl_v4_compiler
             {
                 compiler.SetPSShaderSuffix(psSuffix);
             }
-            // first confirm recursive compilation, if not, single compilation
+            // first check recursive compilation, if not, source compilation
             this.parameterDir.TryGetValue(ParameterType.param_r, out paramTrial);
             if(paramTrial != null && paramTrial.Length != 0)
             {
@@ -143,6 +143,10 @@ namespace hlsl_v4_compiler
     }
     public class Compiler
     {
+        enum ShaderType
+        {
+            Nope, VertexShader, PixelShader, GeometryShader
+        };
         private string shaderEntryName = null;
         private string vsShaderFileSuffix = null;
         private string psShaderFileSuffix = null;
@@ -175,10 +179,10 @@ namespace hlsl_v4_compiler
             switch(this.CheckShaderType(src_file_path))
             {
                 // invalid file type
-                case 0:
+                case ShaderType.Nope:
                     break;
                 // vertex shader
-                case 1:
+                case ShaderType.VertexShader:
                     {
                         ShaderBytecode vertexByteCode = ShaderBytecode.CompileFromFile(src_file_path, shaderEntryName,
                         "vs_4_0", ShaderFlags.None, EffectFlags.None);
@@ -186,7 +190,7 @@ namespace hlsl_v4_compiler
                         vertexByteCode.Dispose();
                     }
                     break;
-                case 2:
+                case ShaderType.PixelShader:
                     {
                         ShaderBytecode pixelByteCode = ShaderBytecode.CompileFromFile(src_file_path, shaderEntryName,
                         "ps_4_0", ShaderFlags.None, EffectFlags.None);
@@ -197,23 +201,42 @@ namespace hlsl_v4_compiler
             }
             return 0;
         }
-        private int CheckShaderType(string src_file_path)
+        public int CompileRecursiveFile(string src_file_path, string des_file_path)
+        {
+            DirectoryInfo dir = new DirectoryInfo(src_file_path);
+            FileSystemInfo[] fsinfos = dir.GetFileSystemInfos();
+            // depth first
+            foreach (FileSystemInfo fsinfo in fsinfos)
+            {
+                if (fsinfo is DirectoryInfo)
+                {
+                    CompileRecursiveFile(fsinfo.FullName, des_file_path);
+                }
+                else
+                {
+                    // compile the shader into .cso
+                    CompileSingleFile(fsinfo.FullName, des_file_path);
+                }
+            }
+            return 0;
+        }
+        private ShaderType CheckShaderType(string src_file_path)
         {
             string[] filePathArr = src_file_path.Split('.');
             if(filePathArr[filePathArr.Length - 1].Equals(this.vsShaderFileSuffix))
             {
                 // 1 means vertex shader
-                return 1;
+                return ShaderType.VertexShader;
             }
             else if(filePathArr[filePathArr.Length - 1].Equals(this.psShaderFileSuffix))
             {
                 // 2 means pixel shader
-                return 2;
+                return ShaderType.PixelShader;
             }
             else
             {
                 // nope
-                return 0;
+                return ShaderType.Nope;
             }
         }
         private int WriteCsoFile(DataStream shaderDataStream, string des_file_path)
