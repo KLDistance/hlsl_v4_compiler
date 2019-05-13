@@ -19,7 +19,41 @@ namespace hlsl_v4_compiler
 {
     public class Semantics
     {
+        // enum for parameter type
+        enum ParameterType
+        {
+            param_d, param_s, param_r
+        };
+        string[] inputParameters = null;
+        Dictionary<int, string[]> parameterDir = null;
+        public Semantics()
+        {
 
+        }
+        public Semantics(string[] parameters)
+        {
+            inputParameters = parameters;
+            this.parameterDir = new Dictionary<int, string[]>();
+            SegmentPrehash();
+        }
+        private void SegmentPrehash()
+        {
+            // find parameter indicator and set indents
+            List<int> indentPosition = new List<int>();
+            for(int i = 0; i < this.inputParameters.Length; i++)
+            {
+                if(this.inputParameters[i].StartsWith("-") && this.inputParameters.Length == 2)
+                {
+                    indentPosition.Add(i);
+                }
+            }
+            // spilt the strings at indent position into dictionary
+            foreach (int position in indentPosition)
+            {
+                
+            }
+            indentPosition.Clear();
+        }
     }
     public class Compiler
     {
