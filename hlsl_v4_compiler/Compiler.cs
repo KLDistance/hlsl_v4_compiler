@@ -119,25 +119,47 @@ namespace hlsl_v4_compiler
                 this.parameterDir.TryGetValue(ParameterType.param_d, out pathParams);
                 if (paramTrial != null && paramTrial.Length != 0)
                 {
-
+                    compiler.CompileRecursiveFile(paramTrial[paramTrial.Length - 1], pathParams[pathParams.Length - 1]);
                 }
                 else
                 {
-
+                    compiler.CompileRecursiveFileInSitu(paramTrial[paramTrial.Length - 1]);
                 }
             }
-            else
+            this.parameterDir.TryGetValue(ParameterType.param_s, out paramTrial);
+            if(paramTrial != null && paramTrial.Length != 0)
             {
                 string[] pathParams = null;
                 this.parameterDir.TryGetValue(ParameterType.param_d, out pathParams);
                 if (paramTrial != null && paramTrial.Length != 0)
                 {
-
+                    foreach(string fp in paramTrial)
+                    {
+                        compiler.CompileSingleFile(fp, pathParams[pathParams.Length - 1]);
+                    }
                 }
                 else
                 {
-
+                    foreach(string fp in paramTrial)
+                    {
+                        compiler.CompileSingleFile(fp, Directory.GetParent(fp).FullName);
+                    }
                 }
+            }
+        }
+        public bool IsOptionalCompilation()
+        {
+            if (this.parameterDir.Count == 0)
+                return false;
+            else
+                return true;
+        }
+        public void CompileWithoutOptions(string[] args)
+        {
+            Compiler compiler = new Compiler();
+            for(int i = 1; i < args.Length; i++)
+            {
+                compiler.CompileSingleFile(args[i], Directory.GetParent(args[i]).FullName);
             }
         }
     }
@@ -216,6 +238,25 @@ namespace hlsl_v4_compiler
                 {
                     // compile the shader into .cso
                     CompileSingleFile(fsinfo.FullName, des_file_path);
+                }
+            }
+            return 0;
+        }
+        public int CompileRecursiveFileInSitu(string src_file_path)
+        {
+            DirectoryInfo dir = new DirectoryInfo(src_file_path);
+            FileSystemInfo[] fsinfos = dir.GetFileSystemInfos();
+            // depth first
+            foreach (FileSystemInfo fsinfo in fsinfos)
+            {
+                if (fsinfo is DirectoryInfo)
+                {
+                    CompileRecursiveFileInSitu(fsinfo.FullName);
+                }
+                else
+                {
+                    // compile the shader into .cso
+                    CompileSingleFile(fsinfo.FullName, src_file_path);
                 }
             }
             return 0;
