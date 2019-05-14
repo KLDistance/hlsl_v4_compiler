@@ -2,6 +2,7 @@
 
 using System;
 using System.IO;
+using System.Diagnostics;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -34,7 +35,7 @@ namespace hlsl_v4_compiler
         {
             long freq = 0;
             TicksTimer.QueryPerformanceFrequency(out freq);
-            this.msFreq = freq * 1000.0;
+            this.msFreq = freq * 0.001;
             this.startTime = 0;
             this.stopTime = 0;
         }
@@ -53,6 +54,7 @@ namespace hlsl_v4_compiler
         // enum for parameter type
         enum ParameterType
         {
+            param_h,    // help information indicator
             param_d,    // generate cso targets directory
             param_s,    // source clusters of file compilation indicator
             param_r,    // recursive file compilation indicator
@@ -90,7 +92,22 @@ namespace hlsl_v4_compiler
             // spilt the strings at indent position into dictionary
             foreach (int[] position in indentPosition)
             {
-                if(String.Equals(this.inputParameters[position[0]], "-d"))
+                if(String.Equals(this.inputParameters[position[0]], "-h"))
+                {
+                    Console.WriteLine(
+@"To compile a cluster of shaders:
+hlsl.exe [-s] <src_ps_vs>
+
+To compile a cluster of shaders and put the generated binaries in the specified directory:
+hlsl.exe -s <src_ps_vs> -d <target_dir>
+
+To recursively compile the shaders with depth-first approach
+hlsl.exe -r <src_init_dir> [-d <target_dir>]
+");
+                    indentPosition.Clear();
+                    Environment.Exit(0);
+                }
+                else if(String.Equals(this.inputParameters[position[0]], "-d"))
                 {
                     string[] tmpStringSubDir = new string[position[1]];
                     for(int i = 0, j = position[0] + 1; i < position[1]; i++, j++)
@@ -153,12 +170,10 @@ namespace hlsl_v4_compiler
                 }
                 else
                 {
-                    Console.WriteLine(paramTrial[paramTrial.Length - 1]);
                     compiler.CompileRecursiveFileInSitu(paramTrial[paramTrial.Length - 1]);
                 }
             }
             this.parameterDir.TryGetValue(ParameterType.param_s, out paramTrial);
-            Console.WriteLine(paramTrial[0]);
             if (paramTrial != null)
             {
                 string[] pathParams = null;
@@ -167,7 +182,6 @@ namespace hlsl_v4_compiler
                 {
                     foreach (string fp in paramTrial)
                     {
-                        Console.WriteLine(fp);
                         compiler.CompileSingleFile(fp, pathParams[pathParams.Length - 1]);
                     }
                 }
@@ -252,6 +266,9 @@ namespace hlsl_v4_compiler
                         this.WriteCsoFile(vertexByteCode.Data, 
                             String.Concat(des_file_path, "\\", fileNameSpilt[fileNameSpilt.Length - 1].Split('.')[0]));
                         vertexByteCode.Dispose();
+#if GENERATE_MSG
+                        Console.WriteLine("{0} compilation done.", src_file_path);
+#endif
                     }
                     break;
                 case ShaderType.PixelShader:
@@ -262,12 +279,12 @@ namespace hlsl_v4_compiler
                         this.WriteCsoFile(pixelByteCode.Data,
                             String.Concat(des_file_path, "\\", fileNameSpilt[fileNameSpilt.Length - 1].Split('.')[0]));
                         pixelByteCode.Dispose();
+#if GENERATE_MSG
+                        Console.WriteLine("{0} compilation done.", src_file_path);
+#endif
                     }
                     break;
             }
-#if GENERATE_MSG
-            Console.WriteLine("{0} compilation done.", src_file_path);
-#endif
             return 0;
         }
         public int CompileRecursiveFile(string src_file_path, string des_file_path)
@@ -330,16 +347,23 @@ namespace hlsl_v4_compiler
         }
         private int WriteCsoFile(DataStream shaderDataStream, string des_file_path)
         {
-            // check whether the directory exists
-            Directory.CreateDirectory(Directory.GetParent(des_file_path).FullName);
-            // create and write into the file
-            FileStream fpShader = new FileStream(String.Concat(des_file_path, ".cso"), 
-                FileMode.OpenOrCreate, FileAccess.ReadWrite);
-            Console.WriteLine(String.Concat(des_file_path, ".cso"));
-            byte[] buffer = new byte[shaderDataStream.Length];
-            shaderDataStream.Read(buffer, 0, buffer.Length);
-            fpShader.Write(buffer, 0, buffer.Length);
-            fpShader.Close();
+            FileStream fpShader = null;
+            try
+            {
+                // check whether the directory exists
+                Directory.CreateDirectory(Directory.GetParent(des_file_path).FullName);
+                // create and write into the file
+                fpShader = new FileStream(String.Concat(des_file_path, ".cso"),
+                    FileMode.OpenOrCreate, FileAccess.ReadWrite);
+                byte[] buffer = new byte[shaderDataStream.Length];
+                shaderDataStream.Read(buffer, 0, buffer.Length);
+                fpShader.Write(buffer, 0, buffer.Length);
+                fpShader.Close();
+            }
+            catch(Exception)
+            {
+                fpShader.Close();
+            }
             return 0;
         }
     }

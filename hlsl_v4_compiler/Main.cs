@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Linq;
 using System.Text;
 
@@ -11,6 +12,8 @@ namespace hlsl_v4_compiler
     {
         static void Main(string[] args)
         {
+            Console.WriteLine("hlslc. v0.1");
+            Console.WriteLine("Author@KLDistance (https://github.com/KLDistance)\n");
             try
             {
                 Semantics semantics = new Semantics(args);
@@ -26,7 +29,7 @@ namespace hlsl_v4_compiler
                 }
                 double msElapsed = timer.MsTickCut();
 #if GENERATE_MSG
-                Console.WriteLine("Overall shader compilation done. {0:00e+0} ms elapsed.", msElapsed);
+                Console.WriteLine("Overall shader compilation done. {0:.##} ms elapsed.", msElapsed);
 #endif 
             }
             catch (Exception e)
