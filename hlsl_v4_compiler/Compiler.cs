@@ -1,6 +1,10 @@
-﻿using System;
+﻿#define GENERATE_MSG
+
+using System;
 using System.IO;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Threading;
 using System.Linq;
 using System.Text;
 using System.Windows.Forms;
@@ -17,6 +21,33 @@ using ID3DSwapChain = SlimDX.DXGI.SwapChain;
 
 namespace hlsl_v4_compiler
 {
+    public class TicksTimer
+    {
+        [DllImport("Kernel32.dll")]
+        private static extern bool QueryPerformanceCounter(out long lpPerformanceCount);
+        [DllImport("Kernel32.dll")]
+        private static extern bool QueryPerformanceFrequency(out long lpFrequency);
+        // frequency
+        double msFreq;
+        long startTime, stopTime;
+        public TicksTimer()
+        {
+            long freq = 0;
+            TicksTimer.QueryPerformanceFrequency(out freq);
+            this.msFreq = freq * 1000.0;
+            this.startTime = 0;
+            this.stopTime = 0;
+        }
+        public void MsTickStart()
+        {
+            TicksTimer.QueryPerformanceCounter(out this.startTime);
+        }
+        public double MsTickCut()
+        {
+            TicksTimer.QueryPerformanceCounter(out this.stopTime);
+            return (this.stopTime - this.startTime) / this.msFreq;
+        }
+    }
     public class Semantics
     {
         // enum for parameter type
@@ -30,7 +61,6 @@ namespace hlsl_v4_compiler
             param_p,    // pixel shader suffix indicator
             param_g     // geometry shader suffix indicator
         };
-        Compiler compiler = null;
         string[] inputParameters = null;
         Dictionary<ParameterType, string[]> parameterDir = null;
         public Semantics()
@@ -49,7 +79,7 @@ namespace hlsl_v4_compiler
             List<int[]> indentPosition = new List<int[]>();
             for(int i = this.inputParameters.Length - 1, j = 0; i >= 0; i--)
             {
-                if(this.inputParameters[i].StartsWith("-") && this.inputParameters.Length == 2)
+                if(this.inputParameters[i].StartsWith("-") && this.inputParameters[i].Length == 2)
                 {
                     indentPosition.Add(new int[2]{i, j});
                     j = 0;
@@ -113,34 +143,37 @@ namespace hlsl_v4_compiler
             }
             // first check recursive compilation, if not, source compilation
             this.parameterDir.TryGetValue(ParameterType.param_r, out paramTrial);
-            if(paramTrial != null && paramTrial.Length != 0)
+            if (paramTrial != null)
             {
                 string[] pathParams = null;
                 this.parameterDir.TryGetValue(ParameterType.param_d, out pathParams);
-                if (paramTrial != null && paramTrial.Length != 0)
+                if (pathParams != null)
                 {
                     compiler.CompileRecursiveFile(paramTrial[paramTrial.Length - 1], pathParams[pathParams.Length - 1]);
                 }
                 else
                 {
+                    Console.WriteLine(paramTrial[paramTrial.Length - 1]);
                     compiler.CompileRecursiveFileInSitu(paramTrial[paramTrial.Length - 1]);
                 }
             }
             this.parameterDir.TryGetValue(ParameterType.param_s, out paramTrial);
-            if(paramTrial != null && paramTrial.Length != 0)
+            Console.WriteLine(paramTrial[0]);
+            if (paramTrial != null)
             {
                 string[] pathParams = null;
                 this.parameterDir.TryGetValue(ParameterType.param_d, out pathParams);
-                if (paramTrial != null && paramTrial.Length != 0)
+                if (pathParams != null)
                 {
-                    foreach(string fp in paramTrial)
+                    foreach (string fp in paramTrial)
                     {
+                        Console.WriteLine(fp);
                         compiler.CompileSingleFile(fp, pathParams[pathParams.Length - 1]);
                     }
                 }
                 else
                 {
-                    foreach(string fp in paramTrial)
+                    foreach (string fp in paramTrial)
                     {
                         compiler.CompileSingleFile(fp, Directory.GetParent(fp).FullName);
                     }
@@ -154,12 +187,19 @@ namespace hlsl_v4_compiler
             else
                 return true;
         }
-        public void CompileWithoutOptions(string[] args)
+        public void CompileWithoutOptions()
         {
             Compiler compiler = new Compiler();
-            for(int i = 1; i < args.Length; i++)
+            if(this.inputParameters.Length == 0)
             {
-                compiler.CompileSingleFile(args[i], Directory.GetParent(args[i]).FullName);
+#if GENERATE_MSG
+                Console.WriteLine("Nothing happened.");
+#endif
+                return;
+            }
+            for(int i = 0; i < this.inputParameters.Length; i++)
+            {
+                compiler.CompileSingleFile(this.inputParameters[i], Directory.GetParent(this.inputParameters[i]).FullName);
             }
         }
     }
@@ -175,8 +215,8 @@ namespace hlsl_v4_compiler
         public Compiler()
         {
             this.shaderEntryName = "main";
-            this.vsShaderFileSuffix = ".vs";
-            this.psShaderFileSuffix = ".ps";
+            this.vsShaderFileSuffix = "vs";
+            this.psShaderFileSuffix = "ps";
         }
         public Compiler(string entryName, string vsSuffix, string psSuffix)
         {
@@ -208,7 +248,9 @@ namespace hlsl_v4_compiler
                     {
                         ShaderBytecode vertexByteCode = ShaderBytecode.CompileFromFile(src_file_path, shaderEntryName,
                         "vs_4_0", ShaderFlags.None, EffectFlags.None);
-                        this.WriteCsoFile(vertexByteCode.Data, des_file_path);
+                        string[] fileNameSpilt = src_file_path.Split('\\');
+                        this.WriteCsoFile(vertexByteCode.Data, 
+                            String.Concat(des_file_path, "\\", fileNameSpilt[fileNameSpilt.Length - 1].Split('.')[0]));
                         vertexByteCode.Dispose();
                     }
                     break;
@@ -216,11 +258,16 @@ namespace hlsl_v4_compiler
                     {
                         ShaderBytecode pixelByteCode = ShaderBytecode.CompileFromFile(src_file_path, shaderEntryName,
                         "ps_4_0", ShaderFlags.None, EffectFlags.None);
-                        this.WriteCsoFile(pixelByteCode.Data, des_file_path);
+                        string[] fileNameSpilt = src_file_path.Split('\\');
+                        this.WriteCsoFile(pixelByteCode.Data,
+                            String.Concat(des_file_path, "\\", fileNameSpilt[fileNameSpilt.Length - 1].Split('.')[0]));
                         pixelByteCode.Dispose();
                     }
                     break;
             }
+#if GENERATE_MSG
+            Console.WriteLine("{0} compilation done.", src_file_path);
+#endif
             return 0;
         }
         public int CompileRecursiveFile(string src_file_path, string des_file_path)
@@ -256,7 +303,8 @@ namespace hlsl_v4_compiler
                 else
                 {
                     // compile the shader into .cso
-                    CompileSingleFile(fsinfo.FullName, src_file_path);
+                    string[] fileNameSpilt = src_file_path.Split('\\');
+                    CompileSingleFile(fsinfo.FullName, String.Concat(src_file_path, "\\", fileNameSpilt[fileNameSpilt.Length - 1]));
                 }
             }
             return 0;
@@ -282,10 +330,14 @@ namespace hlsl_v4_compiler
         }
         private int WriteCsoFile(DataStream shaderDataStream, string des_file_path)
         {
+            // check whether the directory exists
+            Directory.CreateDirectory(Directory.GetParent(des_file_path).FullName);
+            // create and write into the file
             FileStream fpShader = new FileStream(String.Concat(des_file_path, ".cso"), 
                 FileMode.OpenOrCreate, FileAccess.ReadWrite);
+            Console.WriteLine(String.Concat(des_file_path, ".cso"));
             byte[] buffer = new byte[shaderDataStream.Length];
-            shaderDataStream.Write(buffer, 0, buffer.Length);
+            shaderDataStream.Read(buffer, 0, buffer.Length);
             fpShader.Write(buffer, 0, buffer.Length);
             fpShader.Close();
             return 0;
